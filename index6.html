@@ -1,0 +1,270 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
+import warnings
+warnings.filterwarnings('ignore')
+
+# Set style for better visualizations
+plt.style.use('seaborn-v0_8')
+sns.set_palette("husl")
+
+# Create sample data (you can replace this with your actual dataset)
+def create_sample_data():
+    np.random.seed(42)
+    n_samples = 1000
+    
+    data = {
+        'Customer_ID': range(1, n_samples + 1),
+        'Gender': np.random.choice(['Male', 'Female'], n_samples),
+        'Age': np.random.randint(18, 70, n_samples),
+        'Region': np.random.choice(['North', 'South', 'East', 'West'], n_samples),
+        'Product_Category': np.random.choice(['Electronics', 'Clothing', 'Home', 'Books', 'Beauty'], n_samples),
+        'Product_Name': np.random.choice(['Laptop', 'Shirt', 'Table', 'Novel', 'Perfume', 
+                                         'Phone', 'Dress', 'Chair', 'Textbook', 'Cream'], n_samples),
+        'Quantity': np.random.randint(1, 5, n_samples),
+        'Price': np.random.uniform(10, 500, n_samples).round(2),
+        'Purchase_Date': pd.date_range('2023-01-01', periods=n_samples, freq='D'),
+        'Payment_Method': np.random.choice(['Credit Card', 'Debit Card', 'PayPal', 'Cash'], n_samples)
+    }
+    
+    df = pd.DataFrame(data)
+    
+    # Introduce some missing values for demonstration
+    df.loc[np.random.choice(df.index, 50), 'Age'] = np.nan
+    df.loc[np.random.choice(df.index, 30), 'Payment_Method'] = np.nan
+    
+    return df
+
+# Load or create data
+df = create_sample_data()
+
+print("Dataset Overview:")
+print(f"Shape: {df.shape}")
+print("\nFirst 5 rows:")
+print(df.head())
+print("\nDataset Info:")
+print(df.info())
+
+# 🔹 1. DATA CLEANING & PREPARATION
+print("\n" + "="*50)
+print("DATA CLEANING & PREPARATION")
+print("="*50)
+
+# Handle missing values
+print("\nMissing values before cleaning:")
+print(df.isnull().sum())
+
+# Fill missing Age with median age
+df['Age'].fillna(df['Age'].median(), inplace=True)
+
+# Fill missing Payment_Method with mode
+df['Payment_Method'].fillna(df['Payment_Method'].mode()[0], inplace=True)
+
+# Convert Purchase_Date to datetime (already in datetime format)
+df['Purchase_Date'] = pd.to_datetime(df['Purchase_Date'])
+
+# Create Revenue column
+df['Revenue'] = df['Quantity'] * df['Price']
+
+# Create Age Groups
+bins = [18, 25, 35, 45, 55, 70]
+labels = ['18-25', '26-35', '36-45', '46-55', '56-70']
+df['Age_Group'] = pd.cut(df['Age'], bins=bins, labels=labels, right=False)
+
+# Extract month and year from purchase date
+df['Month'] = df['Purchase_Date'].dt.month
+df['Year'] = df['Purchase_Date'].dt.year
+df['Month_Name'] = df['Purchase_Date'].dt.month_name()
+
+print("\nMissing values after cleaning:")
+print(df.isnull().sum())
+
+# 🔹 2. EXPLORATORY DATA ANALYSIS (EDA)
+print("\n" + "="*50)
+print("EXPLORATORY DATA ANALYSIS (EDA)")
+print("="*50)
+
+# Basic statistics
+print("\nBasic Statistics:")
+print(f"Total Revenue: ${df['Revenue'].sum():,.2f}")
+print(f"Average Transaction Value: ${df['Revenue'].mean():.2f}")
+print(f"Total Customers: {df['Customer_ID'].nunique()}")
+print(f"Total Products: {df['Product_Name'].nunique()}")
+
+# Revenue by Region
+region_revenue = df.groupby('Region')['Revenue'].agg(['sum', 'count', 'mean']).round(2)
+print("\nRevenue by Region:")
+print(region_revenue)
+
+# Spending by Age Group and Gender
+age_gender_revenue = df.groupby(['Age_Group', 'Gender'])['Revenue'].agg(['sum', 'mean', 'count']).round(2)
+print("\nSpending by Age Group and Gender:")
+print(age_gender_revenue)
+
+# Top 5 products by revenue
+top_products = df.groupby('Product_Name')['Revenue'].sum().nlargest(5)
+print("\nTop 5 Products by Revenue:")
+print(top_products)
+
+# Top 5 categories by revenue
+top_categories = df.groupby('Product_Category')['Revenue'].sum().nlargest(5)
+print("\nTop 5 Categories by Revenue:")
+print(top_categories)
+
+# Monthly revenue trend
+monthly_revenue = df.groupby(['Year', 'Month', 'Month_Name'])['Revenue'].sum().reset_index()
+print("\nMonthly Revenue Trend:")
+print(monthly_revenue)
+
+# Payment method preferences
+payment_dist = df['Payment_Method'].value_counts(normalize=True) * 100
+print("\nPayment Method Distribution (%):")
+print(payment_dist.round(2))
+
+# 🔹 3. VISUALIZATIONS & INSIGHTS
+print("\n" + "="*50)
+print("VISUALIZATIONS & INSIGHTS")
+print("="*50)
+
+# Set up the plotting style
+plt.figure(figsize=(15, 12))
+
+# 1. Line Chart - Monthly Revenue Trend
+plt.subplot(3, 2, 1)
+monthly_revenue_plot = monthly_revenue.groupby('Month_Name')['Revenue'].sum()
+month_order = ['January', 'February', 'March', 'April', 'May', 'June', 
+               'July', 'August', 'September', 'October', 'November', 'December']
+monthly_revenue_plot = monthly_revenue_plot.reindex(month_order)
+plt.plot(monthly_revenue_plot.index, monthly_revenue_plot.values, marker='o', linewidth=2)
+plt.title('Monthly Revenue Trend', fontsize=14, fontweight='bold')
+plt.xlabel('Month')
+plt.ylabel('Revenue ($)')
+plt.xticks(rotation=45)
+plt.grid(True, alpha=0.3)
+
+# 2. Bar Chart - Region-wise Revenue Comparison
+plt.subplot(3, 2, 2)
+region_revenue_sum = df.groupby('Region')['Revenue'].sum().sort_values(ascending=False)
+plt.bar(region_revenue_sum.index, region_revenue_sum.values, color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'])
+plt.title('Region-wise Revenue Comparison', fontsize=14, fontweight='bold')
+plt.xlabel('Region')
+plt.ylabel('Total Revenue ($)')
+for i, v in enumerate(region_revenue_sum.values):
+    plt.text(i, v, f'${v:,.0f}', ha='center', va='bottom', fontweight='bold')
+
+# 3. Pie Chart - Payment Method Distribution
+plt.subplot(3, 2, 3)
+payment_counts = df['Payment_Method'].value_counts()
+plt.pie(payment_counts.values, labels=payment_counts.index, autopct='%1.1f%%', 
+        colors=['#FF9999', '#66B2FF', '#99FF99', '#FFCC99'])
+plt.title('Payment Method Distribution', fontsize=14, fontweight='bold')
+
+# 4. Heatmap - Correlation between Age, Quantity, and Revenue
+plt.subplot(3, 2, 4)
+correlation_data = df[['Age', 'Quantity', 'Revenue']]
+corr_matrix = correlation_data.corr()
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0, 
+            square=True, fmt='.2f', cbar_kws={'shrink': 0.8})
+plt.title('Correlation Heatmap: Age, Quantity, Revenue', fontsize=14, fontweight='bold')
+
+# 5. Boxplot - Customer Spending by Gender
+plt.subplot(3, 2, 5)
+sns.boxplot(data=df, x='Gender', y='Revenue', palette={'Male': '#66B2FF', 'Female': '#FF9999'})
+plt.title('Spending Behavior by Gender', fontsize=14, fontweight='bold')
+plt.xlabel('Gender')
+plt.ylabel('Revenue ($)')
+
+# 6. Bar Chart - Revenue by Product Category
+plt.subplot(3, 2, 6)
+category_revenue = df.groupby('Product_Category')['Revenue'].sum().sort_values(ascending=False)
+plt.barh(category_revenue.index, category_revenue.values, color=sns.color_palette("husl", len(category_revenue)))
+plt.title('Revenue by Product Category', fontsize=14, fontweight='bold')
+plt.xlabel('Total Revenue ($)')
+plt.ylabel('Product Category')
+for i, v in enumerate(category_revenue.values):
+    plt.text(v, i, f'${v:,.0f}', va='center', fontweight='bold')
+
+plt.tight_layout()
+plt.show()
+
+# Additional Visualizations
+plt.figure(figsize=(15, 10))
+
+# 7. Revenue by Age Group and Gender
+plt.subplot(2, 2, 1)
+age_gender_pivot = df.pivot_table(values='Revenue', index='Age_Group', columns='Gender', aggfunc='sum')
+age_gender_pivot.plot(kind='bar', ax=plt.gca())
+plt.title('Revenue by Age Group and Gender', fontsize=14, fontweight='bold')
+plt.xlabel('Age Group')
+plt.ylabel('Total Revenue ($)')
+plt.xticks(rotation=0)
+
+# 8. Average Transaction Value by Region
+plt.subplot(2, 2, 2)
+avg_transaction = df.groupby('Region')['Revenue'].mean().sort_values(ascending=False)
+plt.bar(avg_transaction.index, avg_transaction.values, color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'])
+plt.title('Average Transaction Value by Region', fontsize=14, fontweight='bold')
+plt.xlabel('Region')
+plt.ylabel('Average Revenue ($)')
+for i, v in enumerate(avg_transaction.values):
+    plt.text(i, v, f'${v:.2f}', ha='center', va='bottom', fontweight='bold')
+
+# 9. Quantity Distribution
+plt.subplot(2, 2, 3)
+quantity_counts = df['Quantity'].value_counts().sort_index()
+plt.bar(quantity_counts.index, quantity_counts.values, color='skyblue')
+plt.title('Quantity Distribution', fontsize=14, fontweight='bold')
+plt.xlabel('Quantity')
+plt.ylabel('Number of Transactions')
+for i, v in enumerate(quantity_counts.values):
+    plt.text(quantity_counts.index[i], v, str(v), ha='center', va='bottom', fontweight='bold')
+
+# 10. Revenue Distribution by Payment Method
+plt.subplot(2, 2, 4)
+payment_revenue = df.groupby('Payment_Method')['Revenue'].sum().sort_values(ascending=False)
+plt.bar(payment_revenue.index, payment_revenue.values, color=['#FF9999', '#66B2FF', '#99FF99', '#FFCC99'])
+plt.title('Revenue by Payment Method', fontsize=14, fontweight='bold')
+plt.xlabel('Payment Method')
+plt.ylabel('Total Revenue ($)')
+plt.xticks(rotation=45)
+for i, v in enumerate(payment_revenue.values):
+    plt.text(i, v, f'${v:,.0f}', ha='center', va='bottom', fontweight='bold', rotation=0)
+
+plt.tight_layout()
+plt.show()
+
+# 🔹 KEY INSIGHTS SUMMARY
+print("\n" + "="*50)
+print("KEY INSIGHTS SUMMARY")
+print("="*50)
+
+print("\n1. REVENUE TRENDS:")
+print(f"   - Total Revenue: ${df['Revenue'].sum():,.2f}")
+print(f"   - Highest revenue month: {monthly_revenue_plot.idxmax()} (${monthly_revenue_plot.max():,.2f})")
+print(f"   - Lowest revenue month: {monthly_revenue_plot.idxmin()} (${monthly_revenue_plot.min():,.2f})")
+
+print("\n2. CUSTOMER SEGMENTS:")
+print(f"   - Highest spending region: {region_revenue_sum.idxmax()} (${region_revenue_sum.max():,.2f})")
+print(f"   - Highest average transaction: {avg_transaction.idxmax()} (${avg_transaction.max():.2f})")
+
+print("\n3. PRODUCT PERFORMANCE:")
+print(f"   - Top product category: {top_categories.idxmax()} (${top_categories.max():,.2f})")
+print(f"   - Top product: {top_products.idxmax()} (${top_products.max():,.2f})")
+
+print("\n4. PAYMENT PREFERENCES:")
+print(f"   - Most popular payment method: {payment_dist.idxmax()} ({payment_dist.max():.1f}%)")
+
+print("\n5. DEMOGRAPHIC INSIGHTS:")
+# Find highest spending age group and gender
+age_gender_max = age_gender_revenue['sum'].idxmax()
+print(f"   - Highest spending demographic: {age_gender_max[1]} {age_gender_max[0]} (${age_gender_revenue.loc[age_gender_max, 'sum']:,.2f})")
+
+print("\n6. CORRELATIONS:")
+print(f"   - Age vs Revenue correlation: {corr_matrix.loc['Age', 'Revenue']:.3f}")
+print(f"   - Quantity vs Revenue correlation: {corr_matrix.loc['Quantity', 'Revenue']:.3f}")
+
+# Save cleaned data to CSV
+df.to_csv('customer_purchase_behavior_cleaned.csv', index=False)
+print(f"\nCleaned data saved to 'customer_purchase_behavior_cleaned.csv'")
